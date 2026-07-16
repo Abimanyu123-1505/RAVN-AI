@@ -110,9 +110,12 @@ def check_exposed_files(base_url: str) -> list[str]:
     return exposed
 
 
-def check_open_ports(domain: str) -> list[int]:
+def check_open_ports(domain: str) -> dict[str, list[int]]:
     open_ports = []
-    ports_to_check = [21, 22, 3306, 5432, 6379, 27017]
+    ports_to_check = [
+        21, 22, 23, 25, 53, 80, 110, 143, 443, 465, 995, 
+        1433, 1521, 2082, 2083, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 27017
+    ]
     def try_port(port):
         try:
             with socket.create_connection((domain, port), timeout=1.5):
@@ -125,7 +128,11 @@ def check_open_ports(domain: str) -> list[int]:
         for r in results:
             if r:
                 open_ports.append(r)
-    return open_ports
+                
+    dangerous_ports = {21, 22, 23, 110, 143, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 27017}
+    dangerous_open = [p for p in open_ports if p in dangerous_ports]
+    
+    return {"all_open": open_ports, "dangerous": dangerous_open}
 
 
 def check_headers_and_latency(url: str) -> dict[str, Any]:
@@ -238,7 +245,9 @@ def scan_website(url: str) -> dict[str, Any]:
     
     # Advanced Active Checks
     exposed_files = check_exposed_files(normalize_url(url))
-    open_ports = check_open_ports(domain)
+    open_ports_dict = check_open_ports(domain)
+    all_open_ports = open_ports_dict["all_open"]
+    dangerous_open_ports = open_ports_dict["dangerous"]
 
     vulnerabilities = []
     severity_score = 0
@@ -258,13 +267,15 @@ def scan_website(url: str) -> dict[str, Any]:
             - Tech Stack: {', '.join(web_result.get('tech_stack', []))}
             - Insecure Cookies: {web_result.get('insecure_cookies')}
             - Exposed Sensitive Files: {', '.join(exposed_files) if exposed_files else 'None'}
-            - Open Ports (Dangerous): {', '.join(map(str, open_ports)) if open_ports else 'None'}
+            - All Open Ports Discovered: {', '.join(map(str, all_open_ports)) if all_open_ports else 'None'}
+            - Dangerous Ports (Management/DB): {', '.join(map(str, dangerous_open_ports)) if dangerous_open_ports else 'None'}
             
             Respond ONLY with a JSON object containing a "vulnerabilities" array. 
             Each vulnerability must have:
-            "title" (string), "severity" ("low", "medium", "high", "critical"), "description" (string), "fix" (string), "cvss" (float).
+            "title" (string), "severity" ("info", "low", "medium", "high", "critical"), "description" (string), "fix" (string), "cvss" (float).
             If no issues, return {{"vulnerabilities": []}}.
-            Be strict. If exposed files like .env exist, it's critical. If database ports are open, it's high/critical.
+            Be strict. If exposed files like .env exist, it's critical. If dangerous ports are open, it's high/critical.
+            Add an "info" severity vulnerability simply listing all open ports found (e.g. 80, 443, 53) for reconnaissance awareness.
             """
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
@@ -282,7 +293,7 @@ def scan_website(url: str) -> dict[str, Any]:
                 if sev == "critical": severity_score += 30
                 elif sev == "high": severity_score += 20
                 elif sev == "medium": severity_score += 10
-                else: severity_score += 5
+                elif sev == "low": severity_score += 5
         except Exception as e:
             print("Groq AI analysis failed, falling back to static rules:", e)
     
@@ -298,15 +309,24 @@ def scan_website(url: str) -> dict[str, Any]:
             })
             severity_score += 30
             
-        if open_ports:
+        if dangerous_open_ports:
             vulnerabilities.append({
                 "title": "Dangerous Open Ports Detected",
                 "severity": "high",
-                "description": f"The following potentially sensitive ports are open to the internet: {', '.join(map(str, open_ports))}",
+                "description": f"The following potentially sensitive ports are open to the internet: {', '.join(map(str, dangerous_open_ports))}",
                 "fix": "Configure a firewall to block public access to database and management ports.",
                 "cvss": 7.5,
             })
             severity_score += 20
+            
+        if all_open_ports:
+            vulnerabilities.append({
+                "title": "Open Ports Discovery (Info)",
+                "severity": "info",
+                "description": f"The following ports were found open on the target: {', '.join(map(str, all_open_ports))}",
+                "fix": "Review these ports to ensure they are intended to be public (e.g. 80, 443).",
+                "cvss": 0.0,
+            })
             
         if web_result.get("insecure_cookies"):
             vulnerabilities.append({
