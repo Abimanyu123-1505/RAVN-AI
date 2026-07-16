@@ -115,15 +115,15 @@ def _seed(conn: sqlite3.Connection) -> None:
 
     now = datetime.now(timezone.utc)
     websites = [
-        ("ws-001", "Nexus Corp", "https://nexuscorp.com", "compromised", 1, "2027-03-15T00:00:00Z", (now - timedelta(minutes=10)).isoformat(), 94, 23, "2025-06-01T10:00:00Z"),
-        ("ws-002", "CloudPay Solutions", "https://cloudpay.io", "active", 1, "2027-08-20T00:00:00Z", (now - timedelta(hours=1)).isoformat(), 12, 96, "2025-07-15T08:00:00Z"),
-        ("ws-003", "EduPortal Global", "https://eduportal.org", "active", 0, "2025-12-01T00:00:00Z", (now - timedelta(hours=2)).isoformat(), 45, 68, "2025-04-10T14:00:00Z"),
-        ("ws-004", "GovSecure Platform", "https://govsecure.gov", "scanning", 1, "2027-11-30T00:00:00Z", (now - timedelta(minutes=30)).isoformat(), 28, 82, "2025-09-05T09:00:00Z"),
-        ("ws-005", "HealthNet Systems", "https://healthnet.care", "active", 1, "2027-06-15T00:00:00Z", (now - timedelta(hours=1, minutes=30)).isoformat(), 8, 98, "2025-05-20T11:00:00Z"),
-        ("ws-006", "Demo Company", "https://demo-company.com", "active", 1, "2027-09-01T00:00:00Z", (now - timedelta(minutes=15)).isoformat(), 35, 74, "2025-11-01T16:00:00Z"),
+        ("ws-001", "Nexus Corp", "https://nexuscorp.com", "compromised", 1, "2027-03-15T00:00:00Z", (now - timedelta(minutes=10)).isoformat(), 94, 23, "", 0, "2025-06-01T10:00:00Z"),
+        ("ws-002", "CloudPay Solutions", "https://cloudpay.io", "active", 1, "2027-08-20T00:00:00Z", (now - timedelta(hours=1)).isoformat(), 12, 96, "", 0, "2025-07-15T08:00:00Z"),
+        ("ws-003", "EduPortal Global", "https://eduportal.org", "active", 0, "2025-12-01T00:00:00Z", (now - timedelta(hours=2)).isoformat(), 45, 68, "", 0, "2025-04-10T14:00:00Z"),
+        ("ws-004", "GovSecure Platform", "https://govsecure.gov", "scanning", 1, "2027-11-30T00:00:00Z", (now - timedelta(minutes=30)).isoformat(), 28, 82, "", 0, "2025-09-05T09:00:00Z"),
+        ("ws-005", "HealthNet Systems", "https://healthnet.care", "active", 1, "2027-06-15T00:00:00Z", (now - timedelta(hours=1, minutes=30)).isoformat(), 8, 98, "", 0, "2025-05-20T11:00:00Z"),
+        ("ws-006", "Demo Company", "https://demo-company.com", "active", 1, "2027-09-01T00:00:00Z", (now - timedelta(minutes=15)).isoformat(), 35, 74, "", 0, "2025-11-01T16:00:00Z"),
     ]
     conn.executemany(
-        "INSERT INTO websites VALUES (?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO websites VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         websites,
     )
 
