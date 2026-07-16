@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import socket
 import ssl
 from datetime import datetime, timezone
@@ -10,6 +13,8 @@ from urllib.parse import urlparse
 
 import dns.resolver
 import requests
+from bs4 import BeautifulSoup
+from groq import Groq
 
 
 REQUIRED_HEADERS = [
@@ -77,11 +82,21 @@ def check_headers_and_latency(url: str) -> dict[str, Any]:
         latency = int((datetime.now() - start).total_seconds() * 1000)
         headers = {k.lower(): v for k, v in response.headers.items()}
         missing = [h for h in REQUIRED_HEADERS if h not in headers]
+        
+        content = response.content
+        content_size = len(content)
+        
+        soup = BeautifulSoup(content, "html.parser")
+        structure = "".join([tag.name for tag in soup.find_all(True)])
+        content_hash = hashlib.md5(structure.encode('utf-8')).hexdigest()
+        
         return {
             "latency": latency,
             "status": response.status_code,
             "headers": headers,
             "missing_headers": missing,
+            "content_size": content_size,
+            "content_hash": content_hash,
         }
     except Exception:
         return {
@@ -89,6 +104,8 @@ def check_headers_and_latency(url: str) -> dict[str, Any]:
             "status": 0,
             "headers": {},
             "missing_headers": REQUIRED_HEADERS[:4],
+            "content_size": 0,
+            "content_hash": "",
         }
 
 
@@ -117,54 +134,93 @@ def scan_website(url: str) -> dict[str, Any]:
     web_result = check_headers_and_latency(url)
     dns_info = check_dns(domain)
 
-    vulnerabilities: list[dict[str, Any]] = []
+    vulnerabilities = []
     severity_score = 0
-
-    if not ssl_result.get("valid"):
-        vulnerabilities.append({
-            "title": "SSL/TLS Certificate Misconfiguration",
-            "severity": "critical",
-            "description": ssl_result.get("error", "The SSL certificate is self-signed, expired, or invalid."),
-            "fix": "Install a valid SSL/TLS certificate from a recognized Certificate Authority.",
-            "cvss": 7.5,
-        })
-        severity_score += 30
-    elif ssl_result.get("days_remaining", 999) < 15:
-        vulnerabilities.append({
-            "title": "SSL/TLS Certificate Expiring Soon",
-            "severity": "medium",
-            "description": f"Certificate expires in {ssl_result['days_remaining']} days.",
-            "fix": "Renew the SSL certificate before expiration.",
-            "cvss": 5.0,
-        })
-        severity_score += 15
-
-    header_checks = [
-        ("content-security-policy", "Missing Content Security Policy (CSP) Header", "high", 20, 6.8),
-        ("x-frame-options", "Missing X-Frame-Options Header", "medium", 10, 4.8),
-        ("strict-transport-security", "Missing Strict-Transport-Security (HSTS) Header", "medium", 10, 5.3),
-        ("x-content-type-options", "Missing X-Content-Type-Options Header", "low", 5, 3.4),
-    ]
-    for header, title, severity, score, cvss in header_checks:
-        if header in web_result["missing_headers"]:
+    
+    # Try AI Analysis first
+    api_key = os.environ.get("GROQ_API_KEY")
+    if api_key:
+        try:
+            client = Groq(api_key=api_key)
+            prompt = f"""
+            Analyze the security of a website with these attributes:
+            - SSL Valid: {ssl_result.get('valid')}
+            - SSL Days Remaining: {ssl_result.get('days_remaining')}
+            - Missing Security Headers: {', '.join(web_result['missing_headers'])}
+            - SPF Record Found: {dns_info.get('spf_found')}
+            
+            Respond ONLY with a JSON object containing a "vulnerabilities" array. 
+            Each vulnerability must have:
+            "title" (string), "severity" ("low", "medium", "high", "critical"), "description" (string), "fix" (string), "cvss" (float).
+            If no issues, return {{"vulnerabilities": []}}.
+            """
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": "You are a cyber security expert. Return strictly JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            data = json.loads(response.choices[0].message.content)
+            vulnerabilities = data.get("vulnerabilities", [])
+            
+            for v in vulnerabilities:
+                sev = v.get("severity", "low").lower()
+                if sev == "critical": severity_score += 30
+                elif sev == "high": severity_score += 20
+                elif sev == "medium": severity_score += 10
+                else: severity_score += 5
+        except Exception as e:
+            print("Groq AI analysis failed, falling back to static rules:", e)
+    
+    # Fallback to static rules if AI failed or no API key
+    if not vulnerabilities and (not ssl_result.get("valid") or web_result["missing_headers"]):
+        if not ssl_result.get("valid"):
             vulnerabilities.append({
-                "title": title,
-                "severity": severity,
-                "description": f"The {header} header was not found in HTTP responses.",
-                "fix": f"Configure the {header} header on your web server.",
-                "cvss": cvss,
+                "title": "SSL/TLS Certificate Misconfiguration",
+                "severity": "critical",
+                "description": ssl_result.get("error", "The SSL certificate is self-signed, expired, or invalid."),
+                "fix": "Install a valid SSL/TLS certificate from a recognized Certificate Authority.",
+                "cvss": 7.5,
             })
-            severity_score += score
+            severity_score += 30
+        elif ssl_result.get("days_remaining", 999) < 15:
+            vulnerabilities.append({
+                "title": "SSL/TLS Certificate Expiring Soon",
+                "severity": "medium",
+                "description": f"Certificate expires in {ssl_result['days_remaining']} days.",
+                "fix": "Renew the SSL certificate before expiration.",
+                "cvss": 5.0,
+            })
+            severity_score += 15
 
-    if not dns_info["spf_found"]:
-        vulnerabilities.append({
-            "title": "Missing SPF Email Authentication Record",
-            "severity": "low",
-            "description": "No SPF record detected. Email spoofing risk is elevated.",
-            "fix": "Add an SPF TXT record to your DNS zone.",
-            "cvss": 3.1,
-        })
-        severity_score += 5
+        header_checks = [
+            ("content-security-policy", "Missing Content Security Policy (CSP) Header", "high", 20, 6.8),
+            ("x-frame-options", "Missing X-Frame-Options Header", "medium", 10, 4.8),
+            ("strict-transport-security", "Missing Strict-Transport-Security (HSTS) Header", "medium", 10, 5.3),
+            ("x-content-type-options", "Missing X-Content-Type-Options Header", "low", 5, 3.4),
+        ]
+        for header, title, severity, score, cvss in header_checks:
+            if header in web_result["missing_headers"]:
+                vulnerabilities.append({
+                    "title": title,
+                    "severity": severity,
+                    "description": f"The {header} header was not found in HTTP responses.",
+                    "fix": f"Configure the {header} header on your web server.",
+                    "cvss": cvss,
+                })
+                severity_score += score
+
+        if not dns_info["spf_found"]:
+            vulnerabilities.append({
+                "title": "Missing SPF Email Authentication Record",
+                "severity": "low",
+                "description": "No SPF record detected. Email spoofing risk is elevated.",
+                "fix": "Add an SPF TXT record to your DNS zone.",
+                "cvss": 3.1,
+            })
+            severity_score += 5
 
     health_score = max(0, 100 - severity_score)
     risk_level = (
@@ -181,6 +237,8 @@ def scan_website(url: str) -> dict[str, Any]:
         "risk_level": risk_level,
         "latency_ms": web_result["latency"],
         "status_code": web_result["status"],
+        "content_size": web_result.get("content_size", 0),
+        "content_hash": web_result.get("content_hash", ""),
         "ssl": {
             "valid": ssl_result.get("valid", False),
             "issuer": ssl_result.get("issuer", "N/A"),

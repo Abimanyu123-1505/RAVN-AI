@@ -117,16 +117,16 @@
           <div class="card">
             <div class="card-body">
               <h2 style="margin-bottom:24px">Team Management</h2>
-              {% for name, email, role in [('Security Admin','admin@ravn.ai','Admin'),('Jane Analyst','jane@ravn.ai','Analyst'),('Bob Viewer','bob@ravn.ai','Viewer')] %}
+              {% for u in users %}
               <div class="toggle-row">
                 <div style="display:flex;align-items:center;gap:12px">
-                  <div class="user-avatar" style="width:32px;height:32px;font-size:0.75rem">{{ name[0] }}</div>
+                  <div class="user-avatar" style="width:32px;height:32px;font-size:0.75rem">{{ u.name[0] }}</div>
                   <div>
-                    <p style="font-weight:500;font-size:0.875rem">{{ name }}</p>
-                    <p class="text-xs text-muted">{{ email }}</p>
+                    <p style="font-weight:500;font-size:0.875rem">{{ u.name }}</p>
+                    <p class="text-xs text-muted">{{ u.email }}</p>
                   </div>
                 </div>
-                <span class="badge badge-info">{{ role }}</span>
+                <span class="badge badge-info">{{ u.role }}</span>
               </div>
               {% endfor %}
               <button type="button" class="btn btn-secondary" style="margin-top:16px">+ Invite Team Member</button>

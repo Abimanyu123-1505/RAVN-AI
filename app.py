@@ -23,17 +23,59 @@ from flask import (
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from groq import Groq
+from apscheduler.schedulers.background import BackgroundScheduler
 
+import config
 import models
-from config import SECRET_KEY
-from scanner import scan_website
+import scanner
+
+app = Flask(__name__)
+app.config["SECRET_KEY"] = config.SECRET_KEY
+
+# Configure APScheduler for Continuous Monitoring
+def run_continuous_monitoring():
+    websites = models.get_websites()
+    for site in websites:
+        if site.get("status") == "compromised":
+            continue
+            
+        print(f"Background monitoring: Scanning {site['name']}")
+        result = scanner.scan_website(site["url"])
+        
+        new_hash = result.get("content_hash", "")
+        new_size = result.get("content_size", 0)
+        
+        old_hash = site.get("content_hash")
+        old_size = site.get("content_size")
+        
+        if old_hash and old_hash != new_hash:
+            size_diff = abs(new_size - (old_size or 0))
+            if size_diff > 500:
+                models.create_alert(
+                    site["id"], site["name"], "critical", 
+                    "Website Defacement / Anomaly Detected", 
+                    f"Significant content anomaly detected. Content signature mismatch and size deviation of {size_diff} bytes."
+                )
+                
+        if new_hash and (not old_hash or (old_hash and old_hash == new_hash)):
+            models.update_website_baseline(site["id"], new_hash, new_size)
+            
+        models.update_website_after_scan(site["id"], result)
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=run_continuous_monitoring, trigger="interval", minutes=5)
+scheduler.start()
+
+# Add a route to manually trigger it for testing
+@app.route("/api/run-scans", methods=["POST"])
+def api_run_scans():
+    run_continuous_monitoring()
+    return jsonify({"success": True, "message": "Background monitoring triggered successfully."})
 
 # Suppress SSL warnings for scanning external sites
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-app = Flask(__name__)
-app.secret_key = SECRET_KEY
 
 
 def login_required(view: Callable):
@@ -44,6 +86,21 @@ def login_required(view: Callable):
             return redirect(url_for("login"))
         return view(*args, **kwargs)
     return wrapped
+
+
+def role_required(role: str):
+    def decorator(view: Callable):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if "user_email" not in session:
+                return redirect(url_for("login"))
+            user = models.get_user_by_email(session["user_email"])
+            if not user or user.get("role") != role:
+                flash(f"You must be an {role} to perform this action.", "error")
+                return redirect(url_for("dashboard"))
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
 
 
 @app.context_processor
@@ -180,11 +237,13 @@ def websites():
 
 @app.route("/websites/add", methods=["POST"])
 @login_required
+@role_required("Admin")
 def add_website():
     name = request.form.get("name", "").strip()
     url = request.form.get("url", "").strip()
     if name and url:
         models.add_website(name, url)
+        models.log_action(session["user_email"], "Added Website", f"{name} ({url})")
         flash(f"{name} is now being monitored.", "success")
     else:
         flash("Name and URL are required.", "error")
@@ -205,10 +264,12 @@ def website_detail(website_id: str):
 
 @app.route("/websites/<website_id>/delete", methods=["POST"])
 @login_required
+@role_required("Admin")
 def delete_website(website_id: str):
     website = models.get_website(website_id)
     if website:
         models.remove_website(website_id)
+        models.log_action(session["user_email"], "Deleted Website", website["name"])
         flash(f"{website['name']} has been removed.", "success")
     return redirect(url_for("websites"))
 
@@ -219,7 +280,7 @@ def scan_website_route(website_id: str):
     website = models.get_website(website_id)
     if not website:
         return jsonify({"error": "Website not found"}), 404
-    result = scan_website(website["url"])
+    result = scanner.scan_website(website["url"])
     models.update_website_after_scan(website_id, result)
     return jsonify(result)
 
@@ -240,6 +301,7 @@ def alert_action(alert_id: str, action: str):
     if action in ("acknowledge", "resolve", "escalate"):
         status_map = {"acknowledge": "acknowledged", "resolve": "resolved", "escalate": "escalated"}
         models.update_alert_status(alert_id, status_map[action])
+        models.log_action(session["user_email"], f"Updated Alert", f"{alert_id} marked as {status_map[action]}")
         flash(f"Alert {status_map[action]}.", "success")
     return redirect(url_for("alerts"))
 
@@ -259,15 +321,26 @@ def reports():
 @login_required
 def settings():
     tab = request.args.get("tab", "profile")
-    return render_template("settings/index.html", active_tab=tab)
+    users = models.get_all_users()
+    return render_template("settings/index.html", active_tab=tab, users=users)
 
 
 @app.route("/settings/save", methods=["POST"])
 @login_required
+@role_required("Admin")
 def save_settings():
+    models.log_action(session["user_email"], "Updated Settings", "System Configuration")
     flash("Settings saved successfully.", "success")
     tab = request.form.get("tab", "profile")
     return redirect(url_for("settings", tab=tab))
+
+
+@app.route("/audit_logs")
+@login_required
+@role_required("Admin")
+def audit_logs():
+    logs = models.get_audit_logs()
+    return render_template("audit_logs.html", logs=logs)
 
 
 # ── API ──────────────────────────────────────────────────────────────────────
@@ -279,7 +352,7 @@ def api_scan():
     url = data.get("url")
     if not url:
         return jsonify({"error": "URL is required"}), 400
-    return jsonify(scan_website(url))
+    return jsonify(scanner.scan_website(url))
 
 
 @app.route("/auth/google", methods=["POST"])
@@ -289,11 +362,13 @@ def auth_google():
         flash("Google sign-in failed: No credential provided.", "error")
         return redirect(url_for("login"))
     try:
-        # Without a client ID in config, we can't fully verify in production securely.
-        # But for this demo, we'll parse it or skip validation if no client ID is provided.
-        # Usually: idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), CLIENT_ID)
-        # Using a relaxed verification for this demo since we don't have a Client ID yet.
-        idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), None, clock_skew_in_seconds=10)
+        # Strict verification using GOOGLE_CLIENT_ID from config
+        client_id = config.GOOGLE_CLIENT_ID
+        if client_id:
+            idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), client_id)
+        else:
+            # Fallback for local demo if no client ID is set (not safe for production)
+            idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), None, clock_skew_in_seconds=10)
         
         email = idinfo.get("email")
         name = idinfo.get("name", "Google User")

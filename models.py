@@ -11,6 +11,7 @@ from typing import Any, Generator
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from config import DATABASE
+import dispatcher
 
 
 def utcnow() -> str:
@@ -49,6 +50,8 @@ def init_db() -> None:
                 last_scan TEXT,
                 threat_score INTEGER DEFAULT 0,
                 health_score INTEGER DEFAULT 100,
+                content_hash TEXT,
+                content_size INTEGER,
                 created_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS alerts (
@@ -84,10 +87,24 @@ def init_db() -> None:
                 vulnerabilities_json TEXT,
                 threat_count INTEGER DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id TEXT PRIMARY KEY,
+                user_email TEXT,
+                action TEXT,
+                target TEXT,
+                timestamp TEXT NOT NULL
+            );
         """)
         count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         if count == 0:
             _seed(conn)
+        
+        # Simple migration to add columns if they don't exist
+        try:
+            conn.execute("ALTER TABLE websites ADD COLUMN content_hash TEXT")
+            conn.execute("ALTER TABLE websites ADD COLUMN content_size INTEGER")
+        except sqlite3.OperationalError:
+            pass # Columns already exist
 
 
 def _seed(conn: sqlite3.Connection) -> None:
@@ -166,6 +183,27 @@ def get_user_by_email(email: str) -> dict[str, Any] | None:
         return dict(row) if row else None
 
 
+def get_all_users() -> list[dict[str, Any]]:
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM users ORDER BY name").fetchall()
+        return [dict(r) for r in rows]
+
+
+def log_action(user_email: str, action: str, target: str) -> None:
+    log_id = f"audit-{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO audit_logs (id, user_email, action, target, timestamp) VALUES (?, ?, ?, ?, ?)",
+            (log_id, user_email, action, target, utcnow()),
+        )
+
+
+def get_audit_logs() -> list[dict[str, Any]]:
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM audit_logs ORDER BY timestamp DESC").fetchall()
+        return [dict(r) for r in rows]
+
+
 def get_dashboard_stats() -> dict[str, Any]:
     with get_db() as conn:
         websites = conn.execute("SELECT COUNT(*) FROM websites").fetchone()[0]
@@ -173,13 +211,16 @@ def get_dashboard_stats() -> dict[str, Any]:
         critical = conn.execute("SELECT COUNT(*) FROM alerts WHERE severity = 'critical' AND status != 'resolved'").fetchone()[0]
         last_scan = conn.execute("SELECT MAX(last_scan) FROM websites").fetchone()[0]
         avg_health = conn.execute("SELECT AVG(health_score) FROM websites").fetchone()[0] or 87
+        
+        valid_ssl = conn.execute("SELECT COUNT(*) FROM websites WHERE ssl_valid = 1").fetchone()[0]
+        compliance = int((valid_ssl / websites * 100) if websites > 0 else 100)
     return {
         "protected_websites": websites,
         "live_threats": threats,
         "critical_vulnerabilities": critical,
         "ai_health_score": int(avg_health),
         "last_scan": last_scan,
-        "compliance_score": 92,
+        "compliance_score": compliance,
     }
 
 
@@ -283,18 +324,48 @@ def get_reports() -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
+def update_website_baseline(website_id: str, content_hash: str, content_size: int) -> None:
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE websites SET content_hash=?, content_size=? WHERE id=?",
+            (content_hash, content_size, website_id),
+        )
+
+
+def create_alert(website_id: str, website_name: str, severity: str, title: str, description: str) -> None:
+    alert_id = f"alert-{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO alerts (id, website_id, website_name, severity, title, description, created_at) VALUES (?,?,?,?,?,?,?)",
+            (alert_id, website_id, website_name, severity, title, description, utcnow()),
+        )
+    # Dispatch notification immediately
+    dispatcher.dispatch_alert(alert_id, website_id, website_name, severity, title, description)
+
+
 def get_threat_trend() -> list[dict[str, Any]]:
-    import random
-    data = []
+    with get_db() as conn:
+        rows = conn.execute("SELECT date(created_at) as d, status, COUNT(*) as c FROM alerts GROUP BY d, status").fetchall()
+        
+    trend_dict = {}
     for i in range(30):
-        date = datetime.now(timezone.utc) - timedelta(days=29 - i)
-        base = random.randint(1, 5)
-        spike = random.randint(3, 8) if i > 24 else 0
-        threats = base + spike
+        d_str = (datetime.now(timezone.utc) - timedelta(days=29 - i)).strftime("%Y-%m-%d")
+        trend_dict[d_str] = {"threats": 0, "resolved": 0}
+        
+    for r in rows:
+        d = r["d"]
+        if d and d in trend_dict:
+            if r["status"] == "resolved":
+                trend_dict[d]["resolved"] += r["c"]
+            else:
+                trend_dict[d]["threats"] += r["c"]
+                
+    data = []
+    for k, v in trend_dict.items():
         data.append({
-            "date": date.strftime("%Y-%m-%d"),
-            "threats": threats,
-            "resolved": max(0, threats - random.randint(0, 2)),
+            "date": k, 
+            "threats": v["threats"] + v["resolved"], 
+            "resolved": v["resolved"]
         })
     return data
 
