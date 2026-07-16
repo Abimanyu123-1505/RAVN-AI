@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block body %}
+<nav class="landing-nav">
+  <div class="sidebar-brand" style="border:none;padding:0;background:transparent;">
+    <div class="sidebar-brand-icon">R</div>
+    <div>
+      <div class="sidebar-brand-text" style="color:var(--navy-900)">RAVN AI</div>
+      <div class="sidebar-brand-sub">Enterprise Security</div>
+    </div>
+  </div>
+  <div class="landing-nav-links">
+    <a href="#features">Features</a>
+    <a href="#platform">Platform</a>
+    <a href="#contact">Contact</a>
+  </div>
+  <div style="display:flex;gap:12px;">
+    <a href="{{ url_for('login') }}" class="btn btn-secondary">Sign In</a>
+    <a href="{{ url_for('signup') }}" class="btn btn-primary">Get Started</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-badge">Enterprise-Grade Security Platform</div>
+  <h1>Intelligent Website Protection for Modern Organizations</h1>
+  <p>Continuously monitor web assets, detect defacement, identify vulnerabilities, and receive AI-driven remediation guidance — all from a unified security operations dashboard.</p>
+  <div class="hero-actions">
+    <a href="{{ url_for('signup') }}" class="btn btn-primary">Start Free Trial</a>
+    <a href="{{ url_for('login') }}" class="btn btn-secondary">View Dashboard</a>
+  </div>
+  <div class="hero-stats">
+    <div>
+      <div class="hero-stat-value">10K+</div>
+      <div class="hero-stat-label">Websites Protected</div>
+    </div>
+    <div>
+      <div class="hero-stat-value">99.9%</div>
+      <div class="hero-stat-label">Monitoring Uptime</div>
+    </div>
+    <div>
+      <div class="hero-stat-value">&lt;30s</div>
+      <div class="hero-stat-label">Threat Detection</div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-alt" id="features">
+  <div class="section-header">
+    <h2>Comprehensive Security Capabilities</h2>
+    <p>Everything your security team needs to protect digital assets and maintain compliance.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🛡</div>
+      <h3>Defacement Detection</h3>
+      <p class="text-sm text-muted" style="margin-top:8px">AI-powered visual analysis detects unauthorized website modifications in real time.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔍</div>
+      <h3>Vulnerability Scanning</h3>
+      <p class="text-sm text-muted" style="margin-top:8px">Automated SSL, header, and DNS security checks with actionable remediation steps.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <h3>Executive Reporting</h3>
+      <p class="text-sm text-muted" style="margin-top:8px">Generate compliance and executive reports for stakeholders and audit requirements.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <h3>Real-Time Alerts</h3>
+      <p class="text-sm text-muted" style="margin-top:8px">Instant notifications via email, Slack, and integrated channels with severity-based routing.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🤖</div>
+      <h3>AI Risk Assessment</h3>
+      <p class="text-sm text-muted" style="margin-top:8px">Intelligent threat prioritization with contextual remediation recommendations.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🏢</div>
+      <h3>Enterprise Ready</h3>
+      <p class="text-sm text-muted" style="margin-top:8px">Role-based access, team management, and API integrations for enterprise workflows.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="platform">
+  <div class="section-header">
+    <h2>Built for Security Operations Teams</h2>
+    <p>A professional dashboard designed for daily use in corporate security environments.</p>
+  </div>
+  <div class="card" style="padding:48px;text-align:center;">
+    <h3 style="margin-bottom:12px">Unified Security Operations Center</h3>
+    <p class="text-muted" style="max-width:500px;margin:0 auto 24px">Monitor all web assets, track threats, and manage incidents from a single pane of glass.</p>
+    <a href="{{ url_for('login') }}" class="btn btn-primary">Access Dashboard</a>
+  </div>
+</section>
+
+<footer class="landing-footer" id="contact">
+  <p>&copy; 2026 RAVN AI. Enterprise Website Security Platform.</p>
+  <p style="margin-top:8px;font-size:0.75rem">admin@ravn.ai · Demo credentials available on login page</p>
+</footer>
+{% endblock %}

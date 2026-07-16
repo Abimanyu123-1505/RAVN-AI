@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}RAVN AI{% endblock %} — Enterprise Security Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% block body %}{% endblock %}
+
+  <!-- AI Chatbot UI -->
+  <div id="ai-chat-container" class="ai-chat-hidden" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end;">
+    <div id="ai-chat-window" style="display: none; width: 320px; height: 400px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); flex-direction: column; margin-bottom: 12px; overflow: hidden;">
+      <div style="background: var(--primary); padding: 12px; color: white; font-weight: 600; display: flex; justify-content: space-between;">
+        <span>RAVN AI Assistant</span>
+        <button id="ai-chat-close" style="background: none; border: none; color: white; cursor: pointer;">&times;</button>
+      </div>
+      <div id="ai-chat-messages" style="flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: var(--background);">
+        <div style="background: var(--surface-light); padding: 8px 12px; border-radius: 12px; align-self: flex-start; max-width: 80%; font-size: 14px;">
+          Hello! How can I help you secure your assets today?
+        </div>
+      </div>
+      <div style="padding: 12px; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 8px;">
+        <input id="ai-chat-input" type="text" placeholder="Type your message..." style="flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--background); color: var(--text);">
+        <button id="ai-chat-send" class="btn btn-primary" style="padding: 8px 12px;">Send</button>
+      </div>
+    </div>
+    <button id="ai-chat-toggle" class="btn btn-primary" style="border-radius: 50%; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 24px; padding: 0;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+    </button>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const toggle = document.getElementById("ai-chat-toggle");
+      const chatWin = document.getElementById("ai-chat-window");
+      const closeBtn = document.getElementById("ai-chat-close");
+      const sendBtn = document.getElementById("ai-chat-send");
+      const input = document.getElementById("ai-chat-input");
+      const messages = document.getElementById("ai-chat-messages");
+
+      function toggleChat() {
+        if (chatWin.style.display === "none") {
+          chatWin.style.display = "flex";
+        } else {
+          chatWin.style.display = "none";
+        }
+      }
+
+      toggle.addEventListener("click", toggleChat);
+      closeBtn.addEventListener("click", () => chatWin.style.display = "none");
+
+      function addMessage(text, isUser) {
+        const msg = document.createElement("div");
+        msg.style.padding = "8px 12px";
+        msg.style.borderRadius = "12px";
+        msg.style.maxWidth = "80%";
+        msg.style.fontSize = "14px";
+        msg.style.wordBreak = "break-word";
+        if (isUser) {
+          msg.style.background = "var(--primary)";
+          msg.style.color = "white";
+          msg.style.alignSelf = "flex-end";
+        } else {
+          msg.style.background = "var(--surface-light)";
+          msg.style.color = "var(--text)";
+          msg.style.alignSelf = "flex-start";
+        }
+        msg.innerText = text;
+        messages.appendChild(msg);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      async function sendMessage() {
+        const text = input.value.trim();
+        if (!text) return;
+        
+        addMessage(text, true);
+        input.value = "";
+        
+        try {
+          const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: text })
+          });
+          const data = await res.json();
+          if (data.response) {
+            addMessage(data.response, false);
+          }
+        } catch (e) {
+          addMessage("Error communicating with AI.", false);
+        }
+      }
+
+      sendBtn.addEventListener("click", sendMessage);
+      input.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+      });
+    });
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

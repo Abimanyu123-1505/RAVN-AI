@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block body %}
+<div class="app-layout">
+  {% include "partials/sidebar.html" %}
+  <div class="main-content">
+    {% include "partials/topbar.html" %}
+    <div class="page-content">
+      {% include "partials/flash.html" %}
+      <h1 style="margin-bottom:28px">Settings</h1>
+
+      <div class="settings-layout">
+        <div class="settings-tabs">
+          {% for tab_id, tab_label in [('profile','Profile'),('notifications','Notifications'),('security','Security'),('api-keys','API Keys'),('team','Team')] %}
+          <a href="{{ url_for('settings', tab=tab_id) }}" class="settings-tab {% if active_tab == tab_id %}active{% endif %}">{{ tab_label }}</a>
+          {% endfor %}
+        </div>
+
+        <div style="flex:1">
+          {% if active_tab == 'profile' %}
+          <div class="card">
+            <div class="card-body">
+              <h2 style="margin-bottom:24px">Profile Settings</h2>
+              <form method="post" action="{{ url_for('save_settings') }}">
+                <input type="hidden" name="tab" value="profile">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                  <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input class="form-input" name="name" value="{{ current_user.name if current_user else '' }}">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input class="form-input" name="email" value="{{ current_user.email if current_user else '' }}">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <input class="form-input" value="{{ current_user.role if current_user else 'Admin' }}" disabled>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Organization</label>
+                    <input class="form-input" name="organization" value="{{ current_user.organization if current_user else 'RAVN Security' }}">
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+              </form>
+            </div>
+          </div>
+
+          {% elif active_tab == 'notifications' %}
+          <div class="card">
+            <div class="card-body">
+              <h2 style="margin-bottom:24px">Notification Preferences</h2>
+              <form method="post" action="{{ url_for('save_settings') }}">
+                <input type="hidden" name="tab" value="notifications">
+                {% for label, desc, checked in [('Email Alerts','Receive alerts via email',true),('Slack Notifications','Send alerts to Slack channel',true),('Telegram Bot','Receive alerts via Telegram',false),('Critical Only','Only notify for critical severity',false)] %}
+                <div class="toggle-row">
+                  <div>
+                    <p style="font-weight:500;font-size:0.875rem">{{ label }}</p>
+                    <p class="text-xs text-muted">{{ desc }}</p>
+                  </div>
+                  <input type="checkbox" {% if checked %}checked{% endif %}>
+                </div>
+                {% endfor %}
+                <div class="form-group" style="margin-top:16px">
+                  <label class="form-label">Slack Webhook URL</label>
+                  <input class="form-input" placeholder="https://hooks.slack.com/services/...">
+                </div>
+                <button type="submit" class="btn btn-primary">Save Preferences</button>
+              </form>
+            </div>
+          </div>
+
+          {% elif active_tab == 'security' %}
+          <div class="card">
+            <div class="card-body">
+              <h2 style="margin-bottom:24px">Security Settings</h2>
+              <form method="post" action="{{ url_for('save_settings') }}">
+                <input type="hidden" name="tab" value="security">
+                <div class="form-group">
+                  <label class="form-label">Current Password</label>
+                  <input class="form-input" type="password" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">New Password</label>
+                  <input class="form-input" type="password" placeholder="••••••••">
+                </div>
+                <div class="toggle-row">
+                  <div>
+                    <p style="font-weight:500;font-size:0.875rem">Two-Factor Authentication</p>
+                    <p class="text-xs text-muted">Add an extra layer of security</p>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm">Enable 2FA</button>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:16px">Update Security</button>
+              </form>
+            </div>
+          </div>
+
+          {% elif active_tab == 'api-keys' %}
+          <div class="card">
+            <div class="card-body">
+              <h2 style="margin-bottom:24px">API Keys</h2>
+              <form method="post" action="{{ url_for('save_settings') }}">
+                <input type="hidden" name="tab" value="api-keys">
+                {% for name, placeholder in [('OpenAI API Key','sk-...'),('VirusTotal API Key','Enter API key...'),('AbuseIPDB API Key','Enter API key...'),('Resend API Key','re_...')] %}
+                <div class="form-group">
+                  <label class="form-label">{{ name }}</label>
+                  <input class="form-input" type="password" placeholder="{{ placeholder }}">
+                </div>
+                {% endfor %}
+                <button type="submit" class="btn btn-primary">Save API Keys</button>
+              </form>
+            </div>
+          </div>
+
+          {% elif active_tab == 'team' %}
+          <div class="card">
+            <div class="card-body">
+              <h2 style="margin-bottom:24px">Team Management</h2>
+              {% for name, email, role in [('Security Admin','admin@ravn.ai','Admin'),('Jane Analyst','jane@ravn.ai','Analyst'),('Bob Viewer','bob@ravn.ai','Viewer')] %}
+              <div class="toggle-row">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div class="user-avatar" style="width:32px;height:32px;font-size:0.75rem">{{ name[0] }}</div>
+                  <div>
+                    <p style="font-weight:500;font-size:0.875rem">{{ name }}</p>
+                    <p class="text-xs text-muted">{{ email }}</p>
+                  </div>
+                </div>
+                <span class="badge badge-info">{{ role }}</span>
+              </div>
+              {% endfor %}
+              <button type="button" class="btn btn-secondary" style="margin-top:16px">+ Invite Team Member</button>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

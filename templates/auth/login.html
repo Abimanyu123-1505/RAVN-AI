@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Sign In{% endblock %}
+{% block body %}
+<div class="auth-layout">
+  <div class="auth-brand">
+    <div class="auth-brand-inner">
+      <h1>RAVN AI</h1>
+      <p>Enterprise platform for website defacement detection, vulnerability assessment, and threat intelligence.</p>
+      <ul class="auth-features">
+        <li>Real-time threat monitoring</li>
+        <li>AI-powered risk assessment</li>
+        <li>Visual defacement detection</li>
+        <li>Compliance reporting</li>
+      </ul>
+    </div>
+  </div>
+  <div class="auth-form-panel">
+    <div class="auth-form">
+      <h2>Welcome back</h2>
+      <p class="text-muted">Sign in to your security dashboard</p>
+      {% include "partials/flash.html" %}
+      <form method="post" action="{{ url_for('login') }}">
+        <div class="form-group">
+          <label class="form-label" for="email">Email address</label>
+          <input class="form-input" type="email" id="email" name="email" value="admin@ravn.ai" required placeholder="you@company.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input class="form-input" type="password" id="password" name="password" value="admin123" required placeholder="Enter password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; margin-bottom: 12px;">Sign In</button>
+        
+        <div style="text-align: center; margin: 16px 0; color: var(--text-muted); font-size: 14px;">
+          OR
+        </div>
+
+        <div id="g_id_onload"
+             data-client_id="YOUR_GOOGLE_CLIENT_ID"
+             data-context="signin"
+             data-ux_mode="popup"
+             data-login_uri="{{ url_for('auth_google', _external=True) }}"
+             data-auto_prompt="false">
+        </div>
+        
+        <div class="g_id_signin"
+             data-type="standard"
+             data-shape="rectangular"
+             data-theme="outline"
+             data-text="signin_with"
+             data-size="large"
+             data-logo_alignment="left"
+             style="display: flex; justify-content: center;">
+        </div>
+        
+      </form>
+      <p class="text-sm text-muted" style="margin-top:24px;text-align:center">
+        Demo: admin@ravn.ai / admin123<br>
+        Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://accounts.google.com/gsi/client" async></script>
+{% endblock %}

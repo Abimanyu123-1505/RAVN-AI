@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Alerts{% endblock %}
+{% block body %}
+<div class="app-layout">
+  {% include "partials/sidebar.html" %}
+  <div class="main-content">
+    {% include "partials/topbar.html" %}
+    <div class="page-content">
+      {% include "partials/flash.html" %}
+      <div class="page-header">
+        <div>
+          <h1>Alerts & Notifications</h1>
+          <p class="text-muted text-sm">{{ alerts | selectattr('status', 'equalto', 'new') | list | length }} unread alerts</p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
+        {% for f in ['all', 'critical', 'high', 'medium', 'low'] %}
+        <a href="{{ url_for('alerts', filter=f) }}"
+           class="btn btn-sm {% if current_filter == f %}btn-primary{% else %}btn-secondary{% endif %}"
+           style="text-transform:capitalize">{{ f }}</a>
+        {% endfor %}
+      </div>
+
+      <div class="card">
+        {% for alert in alerts %}
+        <div class="alert-card {% if alert.severity == 'critical' and alert.status == 'new' %}critical-border{% endif %}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span class="badge badge-{{ alert.severity }}">{{ alert.severity }}</span>
+                <span class="text-xs text-muted" style="text-transform:capitalize">{{ alert.status }}</span>
+              </div>
+              <h3 style="font-size:0.9375rem;margin-bottom:4px">{{ alert.title }}</h3>
+              <p class="text-sm text-muted" style="margin-bottom:8px">{{ alert.description }}</p>
+              <p class="text-xs text-muted">{{ alert.website_name }} · {{ alert.channel }} · {{ alert.created_at | relative_time }}</p>
+            </div>
+            {% if alert.status == 'new' %}
+            <div class="alert-actions">
+              <form method="post" action="{{ url_for('alert_action', alert_id=alert.id, action='acknowledge') }}">
+                <button type="submit" class="btn btn-secondary btn-sm">Acknowledge</button>
+              </form>
+              <form method="post" action="{{ url_for('alert_action', alert_id=alert.id, action='resolve') }}">
+                <button type="submit" class="btn btn-primary btn-sm">Resolve</button>
+              </form>
+              <form method="post" action="{{ url_for('alert_action', alert_id=alert.id, action='escalate') }}">
+                <button type="submit" class="btn btn-secondary btn-sm" style="color:var(--orange-600)">Escalate</button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <p class="text-muted" style="padding:40px;text-align:center">No alerts match this filter.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

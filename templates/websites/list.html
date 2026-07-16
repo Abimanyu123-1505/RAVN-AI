@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Websites{% endblock %}
+{% block body %}
+<div class="app-layout">
+  {% include "partials/sidebar.html" %}
+  <div class="main-content">
+    {% include "partials/topbar.html" %}
+    <div class="page-content">
+      {% include "partials/flash.html" %}
+      <div class="page-header">
+        <div>
+          <h1>Websites</h1>
+          <p class="text-muted text-sm">Manage and monitor your organization's web assets</p>
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.remove('hidden')">+ Add Website</button>
+      </div>
+
+      <form method="get" style="margin-bottom:24px;max-width:360px">
+        <input class="form-input" type="search" name="q" value="{{ search }}" placeholder="Search websites...">
+      </form>
+
+      <div id="scanProgress" class="card hidden" style="margin-bottom:24px;padding:20px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span class="text-sm" id="scanStage">Initializing scan...</span>
+          <span class="text-sm text-muted" id="scanPercent">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="scanBar" style="width:0%;background:var(--blue-600)"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Website</th>
+                <th>Status</th>
+                <th>SSL</th>
+                <th>Last Scan</th>
+                <th>Threat Score</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for site in websites %}
+              <tr>
+                <td>
+                  <strong>{{ site.name }}</strong><br>
+                  <span class="text-xs text-muted">{{ site.url }}</span>
+                </td>
+                <td>
+                  <span class="status-dot status-{{ site.status }}"></span>
+                  <span class="text-sm" style="text-transform:capitalize">{{ site.status }}</span>
+                </td>
+                <td>{% if site.ssl_valid %}<span style="color:var(--green-600)">Valid</span>{% else %}<span style="color:var(--red-600)">Invalid</span>{% endif %}</td>
+                <td class="text-sm text-muted">{{ site.last_scan | relative_time }}</td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div class="progress-bar" style="width:64px">
+                      <div class="progress-fill" style="width:{{ site.threat_score }}%;background:{% if site.threat_score >= 70 %}var(--red-600){% elif site.threat_score >= 40 %}var(--orange-600){% else %}var(--green-600){% endif %}"></div>
+                    </div>
+                    <span class="text-sm" style="font-weight:600">{{ site.threat_score }}</span>
+                  </div>
+                </td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-secondary btn-sm btn-icon scan-btn" data-id="{{ site.id }}" title="Scan">Scan</button>
+                    <a href="{{ url_for('website_detail', website_id=site.id) }}" class="btn btn-secondary btn-sm btn-icon" title="View">View</a>
+                    <form method="post" action="{{ url_for('delete_website', website_id=site.id) }}" style="display:inline" onsubmit="return confirm('Remove this website?')">
+                      <button type="submit" class="btn btn-secondary btn-sm btn-icon" title="Delete" style="color:var(--red-600)">Del</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="text-muted" style="text-align:center;padding:40px">No websites found. Add one to begin monitoring.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="addModal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="modal">
+    <h3 style="margin-bottom:20px">Add Website</h3>
+    <form method="post" action="{{ url_for('add_website') }}">
+      <div class="form-group">
+        <label class="form-label">Website Name</label>
+        <input class="form-input" type="text" name="name" required placeholder="My Company Website">
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL</label>
+        <input class="form-input" type="url" name="url" required placeholder="https://example.com">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('addModal').classList.add('hidden')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add & Monitor</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}

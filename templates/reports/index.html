@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block body %}
+<div class="app-layout">
+  {% include "partials/sidebar.html" %}
+  <div class="main-content">
+    {% include "partials/topbar.html" %}
+    <div class="page-content">
+      {% include "partials/flash.html" %}
+      <div class="page-header">
+        <div>
+          <h1>Security Reports</h1>
+          <p class="text-muted text-sm">Generate and review compliance and executive security reports</p>
+        </div>
+        <button class="btn btn-primary" onclick="alert('Report generation initiated. Your PDF will be ready shortly.')">+ Generate Report</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        {% for report in reports %}
+        <div class="card">
+          <div class="card-body" style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px">
+            <div style="display:flex;gap:16px">
+              <div style="width:48px;height:48px;background:var(--blue-50);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:1.25rem">📄</div>
+              <div>
+                <h3 style="font-size:0.9375rem">{{ report.website_name }} — Security Report</h3>
+                <div style="display:flex;gap:12px;margin:8px 0;align-items:center">
+                  <span class="badge badge-info" style="text-transform:capitalize">{{ report.report_type }}</span>
+                  <span class="text-xs text-muted">{{ report.generated_at | format_datetime }}</span>
+                </div>
+                <p class="text-sm text-muted" style="max-width:560px">{{ report.summary }}</p>
+                <div style="display:flex;gap:16px;margin-top:12px">
+                  <span class="text-xs text-muted">Risk Score: <strong>{{ report.risk_score }}</strong></span>
+                  <span class="text-xs text-muted">Vulnerabilities: <strong>{{ report.vulnerability_count }}</strong></span>
+                  <span class="text-xs text-muted">Threats: <strong>{{ report.threat_count }}</strong></span>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm">View</button>
+              <button class="btn btn-secondary btn-sm">Download</button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

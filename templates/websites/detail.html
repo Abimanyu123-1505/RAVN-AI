@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ website.name }}{% endblock %}
+{% block body %}
+<div class="app-layout">
+  {% include "partials/sidebar.html" %}
+  <div class="main-content">
+    {% include "partials/topbar.html" %}
+    <div class="page-content">
+      {% include "partials/flash.html" %}
+      <div class="page-header">
+        <div>
+          <p class="text-sm text-muted"><a href="{{ url_for('websites') }}">← Back to Websites</a></p>
+          <h1 style="margin-top:8px">{{ website.name }}</h1>
+          <p class="text-muted text-sm">{{ website.url }}</p>
+        </div>
+        <button class="btn btn-primary scan-btn" data-id="{{ website.id }}">Run Security Scan</button>
+      </div>
+
+      <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card">
+          <div class="stat-card-label">Status</div>
+          <div class="stat-card-value" style="font-size:1.25rem;text-transform:capitalize">{{ website.status }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Health Score</div>
+          <div class="stat-card-value">{{ website.health_score }}%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Threat Score</div>
+          <div class="stat-card-value" style="color:{% if website.threat_score >= 70 %}var(--red-600){% elif website.threat_score >= 40 %}var(--orange-600){% else %}var(--green-600){% endif %}">{{ website.threat_score }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">SSL Certificate</div>
+          <div class="stat-card-value" style="font-size:1rem">{% if website.ssl_valid %}Valid{% else %}Invalid{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:24px">
+        <div class="card">
+          <div class="card-header">Scan History</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Duration</th><th>Risk Score</th><th>Findings</th></tr>
+              </thead>
+              <tbody>
+                {% for scan in scans %}
+                <tr>
+                  <td class="text-sm">{{ scan.scan_date | format_datetime }}</td>
+                  <td class="text-sm">{{ scan.duration }}s</td>
+                  <td><span class="badge badge-{{ scan.risk_score | risk_level }}">{{ scan.risk_score }}</span></td>
+                  <td class="text-sm">{{ scan.threat_count }} issues</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-muted text-sm" style="padding:24px;text-align:center">No scans yet. Run a security scan to begin.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Related Alerts</div>
+          <div class="card-body" style="padding:0">
+            {% for alert in alerts %}
+            <div class="alert-card">
+              <span class="badge badge-{{ alert.severity }}">{{ alert.severity }}</span>
+              <p style="font-weight:600;font-size:0.875rem;margin:6px 0">{{ alert.title }}</p>
+              <p class="text-xs text-muted">{{ alert.created_at | relative_time }} · {{ alert.status }}</p>
+            </div>
+            {% else %}
+            <p class="text-muted text-sm" style="padding:24px">No alerts for this website.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {% if scans and scans[0].vulnerabilities %}
+      <div class="card" style="margin-top:24px">
+        <div class="card-header">Latest Scan Findings</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Finding</th><th>Severity</th><th>Description</th><th>Remediation</th></tr>
+            </thead>
+            <tbody>
+              {% for v in scans[0].vulnerabilities %}
+              <tr>
+                <td class="text-sm" style="font-weight:500">{{ v.title }}</td>
+                <td><span class="badge badge-{{ v.severity }}">{{ v.severity }}</span></td>
+                <td class="text-sm text-muted">{{ v.description[:120] }}{% if v.description|length > 120 %}...{% endif %}</td>
+                <td class="text-sm">{{ v.fix[:100] }}{% if v.fix|length > 100 %}...{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}
